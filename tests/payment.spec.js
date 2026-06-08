@@ -55,3 +55,16 @@ test("invalid card number should show validation message", async ({ page }) => {
   ).toHaveText("Invalid card number");
 
 });
+
+test("fraud review payment", async ({ page }) => {
+
+  await page.goto("http://localhost:3000/checkout");
+
+  await page.fill("#cardNo", "4444444444444444");
+
+  await page.click("#payButton");
+
+  await expect(
+    page.locator("#paymentStatus")
+  ).toContainText("Transaction under review");
+});

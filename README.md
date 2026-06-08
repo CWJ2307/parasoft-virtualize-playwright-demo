@@ -26,6 +26,7 @@ The demo covers positive, negative, timeout, and frontend validation scenarios c
        +--> APPROVED
        +--> DECLINED
        +--> TIMEOUT
+	   +--> Fraud
 ```
 
 ## Test Scenarios
@@ -35,7 +36,23 @@ The demo covers positive, negative, timeout, and frontend validation scenarios c
 | Approved Payment | 4111111111111111 | Payment approved |
 | Declined Payment | 4000000000000002 | Payment declined |
 | Timeout | 5555555555554444 | Payment timeout or error |
+| Fraud Review | 4444444444444444 | Transaction under review |
 | Invalid Card Number | 123456 | Invalid card number |
+
+## Data Source Driven Virtualization
+
+The virtual payment gateway is driven by a Parasoft Virtualize data source.
+
+Example data source:
+
+| Card Number | Status | Message | Delay |
+|---|---|---|---|
+| 4111111111111111 | APPROVED | Payment approved | 0 |
+| 4000000000000002 | DECLINED | Payment declined | 0 |
+| 5555555555554444 | TIMEOUT | Payment timeout or error | 10000 |
+| 4444444444444444 | FRAUD | Transaction under review | 0 |
+
+This allows new payment scenarios to be added by updating the data source without creating additional responders.
 
 ### Approved Payment
 
@@ -84,6 +101,23 @@ Response:
 
 ```text
 HTTP 504 Gateway Timeout
+```
+
+### Fraud Review
+
+Card Number:
+
+```text
+4444444444444444
+```
+
+Response:
+
+```text
+{
+  "status": "FRAUD",
+  "message": "Transaction under review"
+}
 ```
 
 ### Invalid Card Number
