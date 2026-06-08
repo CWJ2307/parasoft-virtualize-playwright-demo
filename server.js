@@ -164,10 +164,20 @@ app.get("/checkout", (req, res) => {
 
 app.post("/pay", async (req, res) => {
   try {
-    const response = await axios.post(PAYMENT_URL, req.body, { timeout: 5000 });
+    console.log("Calling payment gateway:", req.body);
+
+    const response = await axios.post(PAYMENT_URL, req.body, {
+      timeout: 15000
+    });
+
+    console.log("Payment gateway response:", response.data);
     res.json(response.data);
   } catch (e) {
-    res.status(504).json({ message: "Payment timeout or error" });
+    console.error("Payment gateway error:", e.code, e.message);
+    res.status(504).json({
+      status: "TIMEOUT",
+      message: "Payment timeout or error"
+    });
   }
 });
 
