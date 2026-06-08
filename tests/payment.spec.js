@@ -9,8 +9,8 @@ test("approved payment should show success message", async ({ page }) => {
   await page.fill("#cardNo", "4111111111111111");
 
   await page.click("#payButton");
-
-await expect(page.locator("#paymentStatus")).toContainText("Payment approved", {timeout: 15000 });
+  
+  await expect(page.locator("#paymentStatus")).toHaveText("Payment approved", {timeout: 15000 });
 });
 
 test("declined payment should show declined message", async ({ page }) => {
@@ -22,8 +22,8 @@ test("declined payment should show declined message", async ({ page }) => {
   await page.fill("#cardNo", "4000000000000002");
 
   await page.click("#payButton");
-
-  await expect(page.locator("#paymentStatus")).toContainText("Payment declined");
+  
+  await expect(page.locator("#paymentStatus")).toHaveText("Payment declined");
 });
 
 test("timeout payment should show timeout error message", async ({ page }) => {
@@ -35,6 +35,23 @@ test("timeout payment should show timeout error message", async ({ page }) => {
   await page.fill("#cardNo", "5555555555554444");
 
   await page.click("#payButton");
+  
+  await expect(page.locator("#paymentStatus")).toHaveText("Payment timeout or error");
+});
 
-  await expect(page.locator("#paymentStatus")).toContainText("Payment timeout or error");
+test("invalid card number should show validation message", async ({ page }) => {
+
+  await page.goto("http://localhost:3000/checkout");
+
+  await page.fill("#orderId", "ORD-1004");
+  await page.fill("#amount", "1000");
+  await page.fill("#currency", "MYR");
+  await page.fill("#cardNo", "123456");
+
+  await page.click("#payButton");
+
+  await expect(
+      page.locator("#paymentStatus")
+  ).toHaveText("Invalid card number");
+
 });

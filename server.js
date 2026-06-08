@@ -119,7 +119,22 @@ app.get("/checkout", (req, res) => {
 
   <script>
     async function pay() {
-      const button = document.getElementById("payButton");
+		
+      const cardNo = document.getElementById("cardNo").value;
+
+      // Frontend Validation
+      if (!/^\\d{16}$/.test(cardNo)) {
+
+        const statusBox =
+            document.getElementById("paymentStatus");
+
+        statusBox.innerText = "Invalid card number";
+        statusBox.className = "status declined";
+
+        return;
+      }
+      
+	  const button = document.getElementById("payButton");
       const statusBox = document.getElementById("paymentStatus");
 
       button.disabled = true;
