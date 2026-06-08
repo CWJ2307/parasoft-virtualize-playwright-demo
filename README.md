@@ -2,21 +2,40 @@
 
 ## Overview
 
-This project demonstrates how Playwright UI automation can work together with Parasoft Virtualize to test payment gateway integrations without relying on a real third-party payment provider.
+This project demonstrates how Playwright UI automation can be combined with Parasoft Virtualize to test payment gateway integrations without relying on a real third-party provider.
+
+The demo covers positive, negative, timeout, and frontend validation scenarios commonly found in enterprise payment systems.
 
 ## Architecture
 
 ```text
-Playwright
-    ↓
-Checkout Application
-    ↓
-Parasoft Virtualize
-    ↓
-Mock Payment Gateway
++------------+
+| Playwright |
++------------+
+       |
+       v
++----------------------+
+| Checkout Application |
++----------------------+
+       |
+       v
++----------------------+
+| Parasoft Virtualize  |
++----------------------+
+       |
+       +--> APPROVED
+       +--> DECLINED
+       +--> TIMEOUT
 ```
 
-## Scenarios
+## Test Scenarios
+
+| Scenario | Card Number | Expected Result |
+|-----------|-----------|-----------|
+| Approved Payment | 4111111111111111 | Payment approved |
+| Declined Payment | 4000000000000002 | Payment declined |
+| Timeout | 5555555555554444 | Payment timeout or error |
+| Invalid Card Number | 123456 | Invalid card number |
 
 ### Approved Payment
 
@@ -65,6 +84,20 @@ Response:
 
 ```text
 HTTP 504 Gateway Timeout
+```
+
+### Invalid Card Number
+
+Card Number:
+
+```text
+123456
+```
+
+Response:
+
+```text
+Invalid card number
 ```
 
 ## Technologies
