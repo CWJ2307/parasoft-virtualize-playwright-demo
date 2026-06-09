@@ -113,7 +113,9 @@ app.get("/checkout", (req, res) => {
     <div class="hint">
       Approved: 4111111111111111<br>
       Declined: 4000000000000002<br>
-      Timeout: 5555555555554444
+      Timeout: 5555555555554444<br>
+	  Blocked: 6666666666666666<br>
+	  Fraud: 4444444444444444<br>
     </div>
   </div>
 
@@ -157,12 +159,16 @@ app.get("/checkout", (req, res) => {
         statusBox.innerText = data.message;
 
         if (data.status === "APPROVED") {
-          statusBox.className = "status approved";
-        } else if (data.status === "DECLINED") {
-          statusBox.className = "status declined";
-        } else {
-          statusBox.className = "status timeout";
-        }
+			statusBox.className = "status approved";
+		} else if (
+			data.status === "DECLINED" ||
+			data.status === "FRAUD" ||
+			data.status === "BLOCKED"
+		) {
+			statusBox.className = "status declined";
+		} else {
+			statusBox.className = "status timeout";
+		}
 
       } catch (e) {
         statusBox.innerText = "Payment timeout or error";

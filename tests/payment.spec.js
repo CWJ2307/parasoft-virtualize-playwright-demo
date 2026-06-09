@@ -26,7 +26,13 @@ const scenarios = [
     orderId: "ORD-1004",
     cardNo: "4444444444444444",
     expected: "Transaction under review"
-  }
+  },
+  {
+    name: "Blocked Card",
+    orderId: "ORD-1005",
+    cardNo: "6666666666666666",
+    expected: "Card blocked"
+}
 ];
 
 for (const scenario of scenarios) {

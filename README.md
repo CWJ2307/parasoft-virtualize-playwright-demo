@@ -26,7 +26,8 @@ The demo covers positive, negative, timeout, and frontend validation scenarios c
        +--> APPROVED
        +--> DECLINED
        +--> TIMEOUT
-	   +--> Fraud
+	   +--> FRAUD
+	   +--> BLOCKED
 ```
 
 ## Test Scenarios
@@ -38,6 +39,7 @@ The demo covers positive, negative, timeout, and frontend validation scenarios c
 | Timeout | 5555555555554444 | Payment timeout or error |
 | Fraud Review | 4444444444444444 | Transaction under review |
 | Invalid Card Number | 123456 | Invalid card number |
+| Blocked Card | 123456 | Card blocked |
 
 ## Data Source Driven Virtualization
 
@@ -51,6 +53,7 @@ Example data source:
 | 4000000000000002 | DECLINED | Payment declined | 0 |
 | 5555555555554444 | TIMEOUT | Payment timeout or error | 10000 |
 | 4444444444444444 | FRAUD | Transaction under review | 0 |
+| 6666666666666666 | BLOCKED | Card blocked | 0 |
 
 This allows new payment scenarios to be added by updating the data source without creating additional responders.
 
@@ -120,6 +123,23 @@ Response:
 }
 ```
 
+### Blocked Card
+
+Card Number:
+
+```text
+6666666666666666
+```
+
+Response:
+
+```text
+{
+  "status": "Blocked",
+  "message": "Card blocked"
+}
+```
+
 ### Invalid Card Number
 
 Card Number:
@@ -183,3 +203,13 @@ This project demonstrates:
 * Negative Testing
 * Timeout Testing
 * Payment Gateway Simulation
+
+## Notes for Parasoft Virtualize Data Source
+
+After adding or modifying rows in the `payment_cards` data source:
+
+1. Save the `.pva` file.
+2. Stop and start the virtual asset.
+3. Re-test the payment scenario.
+
+If the new card number does not match, Virtualize may still be using the previous data source runtime state.
