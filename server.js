@@ -7,6 +7,15 @@ app.use(express.urlencoded({ extended: true }));
 
 const PAYMENT_URL = process.env.PAYMENT_URL || "http://localhost:9080/payment/charge";
 
+const ACCOUNT_URL = process.env.ACCOUNT_URL || "http://localhost:9080/payment/account/balance";
+
+const cardBalances = {
+  "4111111111111111": 5000,
+  "4000000000000002": 500,
+  "4444444444444444": 3000,
+  "6666666666666666": 1000
+};
+
 app.get("/checkout", (req, res) => {
   res.send(`
 <!DOCTYPE html>
@@ -116,6 +125,7 @@ app.get("/checkout", (req, res) => {
       Timeout: 5555555555554444<br>
 	  Blocked: 6666666666666666<br>
 	  Fraud: 4444444444444444<br>
+	  Insufficient Funds: 7777777777777777<br>
     </div>
   </div>
 
@@ -156,7 +166,9 @@ app.get("/checkout", (req, res) => {
         });
 
         const data = await res.json();
-        statusBox.innerText = data.message;
+        statusBox.innerText = data.balance !== undefined
+		? data.message + " | Balance: MYR " + data.balance
+		: data.message;
 
         if (data.status === "APPROVED") {
 			statusBox.className = "status approved";
@@ -187,12 +199,45 @@ app.post("/pay", async (req, res) => {
   try {
     console.log("Calling payment gateway:", req.body);
 
+    const { cardNo, amount } = req.body;
+    const paymentAmount = Number(amount);
+	if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+	  return res.status(400).json({
+		status: "DECLINED",
+		message: "Invalid amount"
+    });
+}
+    /*
+	const currentBalance = cardBalances[cardNo];
+	*/
+	const balanceResponse = await axios.post(
+	  ACCOUNT_URL,
+	  { cardNo },
+	  { timeout: 5000 }
+	);
+
+	const currentBalance = Number(balanceResponse.data.balance);
+
+    if (currentBalance !== undefined && currentBalance < paymentAmount) {
+      return res.status(200).json({
+        status: "DECLINED",
+        message: "Insufficient funds",
+        balance: currentBalance
+      });
+    }
+
     const response = await axios.post(PAYMENT_URL, req.body, {
       timeout: 15000
     });
 
+    if (response.data.status === "APPROVED" && currentBalance !== undefined) {
+      cardBalances[cardNo] = currentBalance - paymentAmount;
+      response.data.balance = cardBalances[cardNo];
+    }
+
     console.log("Payment gateway response:", response.data);
     res.json(response.data);
+
   } catch (e) {
     console.error("Payment gateway error:", e.code, e.message);
     res.status(504).json({
