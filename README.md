@@ -4,18 +4,20 @@
 
 This project demonstrates how Playwright UI automation can be combined with Parasoft Virtualize to test payment processing workflows without relying on real third-party services.
 
-The solution uses service virtualization to simulate both Account Services and Payment Gateway Services, allowing end-to-end testing of payment scenarios including:
+The solution uses service virtualization to simulate Account Services, Payment Gateway Services, Transaction History Services, and PDF Receipt Services, allowing end-to-end testing of payment scenarios.
 
-* Balance Validation
-* Approved Payments
-* Declined Payments
-* Fraud Review
-* Blocked Cards
-* Timeout Handling
-* Frontend Validation
-* Runtime Balance Deduction
+Key capabilities include:
+
+* Service Virtualization
+* API Virtualization
+* Data Source Correlation
+* Dynamic Responses
+* UI Automation Testing
 * Transaction History
-* Receipt Generation
+* PDF Receipt Download
+* Runtime Balance Deduction
+* Built-in Mode
+* Virtualize Mode
 
 ---
 
@@ -31,17 +33,19 @@ The solution uses service virtualization to simulate both Account Services and P
 | Checkout Application |
 +----------------------+
        |
-       +------------------------------+
-       |                              |
-       | Built-in Mode                | Virtualize Mode
-       |                              |
-       v                              v
-+------------------+      +----------------------+
-| In-Memory Data   |      | Parasoft Virtualize  |
-| Card Balances    |      | Account Service      |
-| Payment Gateway  |      | Payment Gateway      |
-| Transaction Log  |      | Data Source Driven   |
-+------------------+      +----------------------+
+       +--------------------------------------------+
+       |                                            |
+       | Built-in Mode                              | Virtualize Mode
+       |                                            |
+       v                                            v
++---------------------+               +----------------------+
+| In-Memory Services  |               | Parasoft Virtualize  |
+|                     |               |                      |
+| Account Service     |               | Account Service      |
+| Payment Gateway     |               | Payment Gateway      |
+| Transaction History |               | Transaction History  |
+| Receipt Service     |               | PDF Receipt Service  |
++---------------------+               +----------------------+
 ```
 
 ---
@@ -50,26 +54,25 @@ The solution uses service virtualization to simulate both Account Services and P
 
 ### Built-in Mode
 
-When both URL fields are left empty:
+When all Virtualize URL fields are left empty:
 
-* Uses in-memory account balances
+* Uses built-in account balances
 * Uses built-in payment gateway responses
-* Supports balance deduction
-* Supports transaction history
-* Supports receipt generation
-* Supports balance reset
+* Uses in-memory transaction history
+* Uses built-in HTML receipt generation
+* Supports runtime balance deduction
 * Does not require Parasoft Virtualize
 
 ### Virtualize Mode
 
-When Virtualize URLs are provided:
+When Virtualize URLs are configured:
 
 * Calls Parasoft Virtualize Account Service
-* Calls Parasoft Virtualize Payment Gateway Service
-* Uses virtualized responses
-* Uses Parasoft Data Sources
-* Uses Request Correlation
-* Suitable for service virtualization demonstrations
+* Calls Parasoft Virtualize Payment Gateway
+* Calls Parasoft Virtualize Transaction History Service
+* Downloads PDF Receipts from Parasoft Virtualize
+* Uses Data Source Correlation
+* Uses Dynamic Responses
 
 ---
 
@@ -82,11 +85,6 @@ Endpoint:
 ```http
 POST /payment/account/balance
 ```
-
-Purpose:
-
-* Retrieve available card balance
-* Validate funds before payment processing
 
 Example Request:
 
@@ -115,11 +113,6 @@ Endpoint:
 POST /payment/charge
 ```
 
-Purpose:
-
-* Simulate payment processing
-* Return approved, declined, fraud, blocked, or timeout responses
-
 Example Request:
 
 ```json
@@ -129,6 +122,66 @@ Example Request:
   "currency": "MYR",
   "cardNo": "4111111111111111"
 }
+```
+
+---
+
+### Transaction History Service
+
+Endpoint:
+
+```http
+POST /payment/history
+```
+
+Example Request:
+
+```json
+{
+  "cardNo": "4111111111111111"
+}
+```
+
+Example Response:
+
+```json
+{
+  "cardNo": "4111111111111111",
+  "transactions": [
+    {
+      "txnId": "TXN-1001",
+      "amount": 1000,
+      "status": "APPROVED"
+    },
+    {
+      "txnId": "TXN-1003",
+      "amount": 2000,
+      "status": "TIMEOUT"
+    }
+  ]
+}
+```
+
+---
+
+### PDF Receipt Service
+
+Endpoint:
+
+```http
+GET /payment/receipt/{transactionId}
+```
+
+Example:
+
+```http
+GET /payment/receipt/TXN-1001
+```
+
+Returns:
+
+```text
+receipt-TXN-1001.pdf
 ```
 
 ---
@@ -149,9 +202,9 @@ Example Request:
 
 ## Data Source Driven Virtualization
 
-The virtual payment gateway is fully data-driven using Parasoft Virtualize Data Sources.
+Payment Gateway and Transaction History services are fully data-driven using Parasoft Virtualize Data Sources.
 
-Example:
+Example Payment Data Source:
 
 | Card Number      | Status   | Message                   | Delay |
 | ---------------- | -------- | ------------------------- | ----- |
@@ -161,32 +214,20 @@ Example:
 | 4444444444444444 | FRAUD    | Transaction under review. | 0     |
 | 6666666666666666 | BLOCKED  | Card blocked.             | 0     |
 
-New payment scenarios can be added by updating the data source without creating additional responders.
+New scenarios can be added without creating additional responders.
 
 ---
 
 ## Runtime Balance Deduction
 
-In Built-in Mode, successful approved payments deduct the available balance.
+Successful approved payments deduct available balance.
 
 Example:
 
-Initial Balance:
-
 ```text
-4111111111111111 = MYR 5000
-```
-
-Payment:
-
-```text
-Amount = MYR 1000
-```
-
-Remaining Balance:
-
-```text
-MYR 4000
+Initial Balance = MYR 5000
+Payment Amount  = MYR 1000
+Remaining       = MYR 4000
 ```
 
 Balances remain in memory until:
@@ -198,9 +239,9 @@ Balances remain in memory until:
 
 ## Transaction History
 
-The checkout application records runtime transaction history for each card number.
+The checkout application records transaction history during runtime.
 
-After performing payments, users can click **View Transaction History** to review:
+Users can view:
 
 * Timestamp
 * Order ID
@@ -211,75 +252,52 @@ After performing payments, users can click **View Transaction History** to revie
 * Execution Mode
 * Receipt Download Link
 
-Transaction history is stored in memory and cleared when:
+Transaction history can be served by:
 
-* Reinitialize Data is clicked
-* Node.js application is restarted
-
-Example:
-
-| Time                 | Order ID | Transaction ID | Amount | Status   |
-| -------------------- | -------- | -------------- | ------ | -------- |
-| 2026-06-10T12:00:00Z | ORD-1001 | TXN-1001       | 1000   | APPROVED |
-| 2026-06-10T12:05:00Z | ORD-1002 | TXN-1002       | 500    | DECLINED |
+* Built-in Runtime Storage
+* Parasoft Virtualize History Service
 
 ---
 
-## Receipt Download
+## PDF Receipt Download
 
-Transactions with a transaction ID can generate a downloadable receipt.
+The application supports two receipt modes:
 
-Users can click **Download** from the Transaction History table.
+### Built-in Receipt
 
-Endpoint:
+Generated dynamically by Node.js:
 
-```http
-GET /payment/receipt/{transactionId}
+```text
+/payment/receipt/TXN-1001
 ```
 
-Receipt information includes:
-
-* Transaction ID
-* Order ID
-* Masked Card Number
-* Amount
-* Status
-* Remaining Balance
-* Execution Mode
-* Timestamp
-
-The receipt page supports:
+Features:
 
 * Browser Print
 * Save as PDF
-* Demo Receipt Generation
+* Transaction Summary
 
-Example:
+### Virtualized Receipt
+
+Downloaded directly from Parasoft Virtualize:
 
 ```text
-Transaction ID : TXN-1001
-Order ID       : ORD-1001
-Card Number    : 411111******1111
-Amount         : MYR 1000
-Status         : APPROVED
-Balance        : MYR 4000
-Mode           : BUILT_IN
+http://localhost:9080/payment/receipt/TXN-1001
 ```
+
+Features:
+
+* Binary File Virtualization
+* PDF Simulation
+* File Download Testing
 
 ---
 
 ## Runtime State Management
 
-The application maintains runtime state for:
+The application manages:
 
-* Account Balances
-* Transaction History
-
-Runtime state is preserved during application execution and can be reset without restarting Node.js.
-
-Managed State:
-
-| Feature             | Runtime Storage       |
+| Feature             | Storage               |
 | ------------------- | --------------------- |
 | Card Balances       | Memory                |
 | Transaction History | Memory                |
@@ -291,70 +309,37 @@ Managed State:
 
 ### Save URLs
 
-The application can persist Virtualize endpoint URLs using browser local storage.
+Virtualize URLs can be saved locally using browser local storage.
 
-Configured URLs remain available after refreshing the page.
+Saved configuration survives page refreshes.
 
 ### Reinitialize Data
 
-The Reinitialize Data button restores all built-in balances and transaction history without restarting Node.js.
+Restores:
 
-Default balances:
+* Built-in balances
+* Transaction history
 
-| Card Number      | Balance |
-| ---------------- | ------- |
-| 4111111111111111 | 5000    |
-| 4000000000000002 | 5000    |
-| 5555555555554444 | 5000    |
-| 4444444444444444 | 5000    |
-| 6666666666666666 | 5000    |
-| 7777777777777777 | 300     |
+without restarting Node.js.
 
 ---
 
-## Dual Mode Operation
+## Supported Virtualize URLs
 
-### Built-in Mode
-
-No external dependency required.
-
-```text
-Payment URL = empty
-Account URL = empty
-```
-
-The application uses:
-
-* Built-in Account Service
-* Built-in Payment Gateway
-* Runtime Balances
-* Runtime Transaction History
-
-### Virtualize Mode
-
-Connects to Parasoft Virtualize services.
-
-```text
-Payment URL = http://localhost:9080/payment/charge
-Account URL = http://localhost:9080/payment/account/balance
-```
-
-The application uses:
-
-* Virtualized Account Service
-* Virtualized Payment Gateway
-* Data Source Driven Responses
-* Request Correlation
-
-Users can save Virtualize URLs using the Save URLs button and switch modes without modifying application code.
+| Setting                 | Example                                       |
+| ----------------------- | --------------------------------------------- |
+| Payment Gateway URL     | http://localhost:9080/payment/charge          |
+| Account Balance URL     | http://localhost:9080/payment/account/balance |
+| Transaction History URL | http://localhost:9080/payment/history         |
+| Receipt PDF URL         | http://localhost:9080/payment/receipt         |
 
 ---
 
 ## Automated Tests
 
-The Playwright test suite validates:
+Playwright validates:
 
-### Payment Gateway Scenarios
+### Payment Gateway
 
 * Approved Payment
 * Declined Payment
@@ -362,15 +347,21 @@ The Playwright test suite validates:
 * Fraud Review
 * Blocked Card
 
-### Validation Scenarios
+### Validation
 
 * Invalid Card Number
 * Insufficient Funds
 
-### Balance Validation
+### Balance Management
 
-* Approved payment deducts balance
-* Balance validation before payment processing
+* Balance Deduction
+* Balance Validation
+
+### End-to-End Testing
+
+* Checkout Application
+* Virtualized Services
+* UI Validation
 
 ---
 
@@ -413,13 +404,13 @@ Run all tests:
 npx playwright test
 ```
 
-Run with browser visible:
+Run headed:
 
 ```bash
 npx playwright test --headed --slow-mo=1000
 ```
 
-Run using a single worker:
+Run sequentially:
 
 ```bash
 npx playwright test --workers=1
@@ -433,30 +424,31 @@ This project demonstrates:
 
 * Service Virtualization
 * API Virtualization
+* File Virtualization
 * Data Source Correlation
+* Dynamic Responses
 * UI Automation Testing
-* Balance Validation
 * Runtime State Management
 * Transaction History
-* Receipt Generation
+* PDF Receipt Download
 * Payment Gateway Simulation
-* Fraud Testing
-* Timeout Testing
-* Negative Testing
-* End-to-End Integration Testing
+* Fraud Simulation
+* Timeout Simulation
+* End-to-End Testing
 
 ---
 
-## Notes for Parasoft Virtualize Data Source
+## Notes for Parasoft Virtualize
 
-After adding or modifying rows in a Data Source:
+After modifying a Data Source:
 
 1. Save the Data Source.
 2. Save the `.pva` file.
-3. Stop and restart the Virtual Asset.
-4. Re-test the payment scenario.
+3. Stop the Virtual Asset.
+4. Start the Virtual Asset.
+5. Re-test the scenario.
 
-If a newly added card number does not match, Virtualize may still be using a previous runtime state. Restarting the Virtual Asset typically resolves the issue.
+This ensures Virtualize reloads the latest Data Source values.
 
 ---
 
@@ -464,12 +456,14 @@ If a newly added card number does not match, Virtualize may still be using a pre
 
 Potential future phases:
 
-* Loyalty Points Service
 * Refund Service
-* Transaction Search API
+* Loyalty Points Service
 * Account Statement Service
-* PDF Receipt Virtualization
-* Mock Fraud Detection Service
+* Multi-currency Support
 * Random Failure Injection
 * JWT Authentication Simulation
 * Performance Testing with Parasoft Load Test
+* AI-Assisted Test Generation
+
+```
+```

@@ -7,6 +7,8 @@ app.use(express.urlencoded({ extended: true }));
 
 const DEFAULT_PAYMENT_URL = process.env.PAYMENT_URL || "";
 const DEFAULT_ACCOUNT_URL = process.env.ACCOUNT_URL || "";
+const DEFAULT_HISTORY_URL = process.env.HISTORY_URL || "";
+const DEFAULT_RECEIPT_URL = process.env.RECEIPT_URL || "";
 
 const builtInPaymentData = {
   "4111111111111111": { status: "APPROVED", transactionId: "TXN-1001", message: "Payment approved.", delay: 0 },
@@ -192,6 +194,12 @@ app.get("/checkout", (req, res) => {
       <label>Account Balance URL</label>
       <input id="accountUrl" value="${DEFAULT_ACCOUNT_URL}" placeholder="Optional: http://localhost:9080/payment/account/balance" />
 
+      <label>Transaction History URL</label>
+      <input id="historyUrl" value="${DEFAULT_HISTORY_URL}" placeholder="Optional: http://localhost:9080/payment/history" />
+
+      <label>Receipt PDF URL</label>
+      <input id="receiptUrl" value="${DEFAULT_RECEIPT_URL}" placeholder="Optional: http://localhost:9080/payment/receipt" />
+
       <button class="secondary" onclick="saveUrls()">Save URLs</button>
       <button class="reset" onclick="reinitializeData()">Reinitialize Data</button>
     </div>
@@ -206,8 +214,8 @@ app.get("/checkout", (req, res) => {
       Insufficient Funds: 7777777777777777<br><br>
 
       <b>Mode</b><br>
-      Built-in mode: leave both URL fields empty<br>
-      Virtualize mode: fill in the Payment Gateway URL and Account Balance URL
+      Built-in mode: leave all URL fields empty<br>
+      Virtualize mode: fill in Payment Gateway URL, Account Balance URL, optional Transaction History URL, and optional Receipt PDF URL
     </div>
   </div>
 
@@ -215,6 +223,8 @@ app.get("/checkout", (req, res) => {
     window.addEventListener("DOMContentLoaded", () => {
       const savedPaymentUrl = localStorage.getItem("paymentUrl");
       const savedAccountUrl = localStorage.getItem("accountUrl");
+      const savedHistoryUrl = localStorage.getItem("historyUrl");
+      const savedReceiptUrl = localStorage.getItem("receiptUrl");
 
       if (savedPaymentUrl !== null) {
         document.getElementById("paymentUrl").value = savedPaymentUrl;
@@ -223,11 +233,21 @@ app.get("/checkout", (req, res) => {
       if (savedAccountUrl !== null) {
         document.getElementById("accountUrl").value = savedAccountUrl;
       }
+
+      if (savedHistoryUrl !== null) {
+        document.getElementById("historyUrl").value = savedHistoryUrl;
+      }
+
+      if (savedReceiptUrl !== null) {
+        document.getElementById("receiptUrl").value = savedReceiptUrl;
+      }
     });
 
     function saveUrls() {
       localStorage.setItem("paymentUrl", document.getElementById("paymentUrl").value);
       localStorage.setItem("accountUrl", document.getElementById("accountUrl").value);
+      localStorage.setItem("historyUrl", document.getElementById("historyUrl").value);
+      localStorage.setItem("receiptUrl", document.getElementById("receiptUrl").value);
 
       const statusBox = document.getElementById("paymentStatus");
       statusBox.innerText = "URLs saved";
@@ -252,54 +272,66 @@ app.get("/checkout", (req, res) => {
     async function viewHistory() {
       const cardNo = document.getElementById("cardNo").value;
       const historyBox = document.getElementById("historyBox");
+      const receiptBaseUrl = document.getElementById("receiptUrl").value.trim();
 
       const res = await fetch("/payment/history", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cardNo })
+        body: JSON.stringify({
+          cardNo,
+          historyUrl: document.getElementById("historyUrl").value
+        })
       });
 
       const data = await res.json();
 
       if (!data.transactions || data.transactions.length === 0) {
-        historyBox.innerHTML = "No transactions found for this card.";
+        historyBox.innerHTML = data.message || "No transactions found for this card.";
         return;
       }
 
-      const rows = data.transactions.map(txn => \`
-        <tr>
-          <td>\${txn.timestamp}</td>
-          <td>\${txn.orderId}</td>
-          <td>\${txn.transactionId || "-"}</td>
-          <td>\${txn.amount}</td>
-          <td>\${txn.status}</td>
-          <td>\${txn.balance}</td>
-          <td>\${txn.mode}</td>
-          <td>
-            \${txn.transactionId
-              ? \`<a href="/payment/receipt/\${txn.transactionId}" target="_blank">Download</a>\`
-              : "-"}
-          </td>
-        </tr>
-      \`).join("");
+      const rows = data.transactions.map(function(txn) {
+        const txnId = txn.transactionId || txn.txnId || "-";
+        const mode = txn.mode || data.mode || "-";
 
-      historyBox.innerHTML = \`
-        <table>
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Order</th>
-              <th>Txn ID</th>
-              <th>Amount</th>
-              <th>Status</th>
-              <th>Balance</th>
-              <th>Mode</th>
-              <th>Receipt</th>
-            </tr>
-          </thead>
-          <tbody>\${rows}</tbody>
-        </table>
-      \`;
+        let receiptLink = "-";
+
+        if (txnId !== "-") {
+          const downloadUrl = receiptBaseUrl !== ""
+            ? receiptBaseUrl + "/" + txnId
+            : "/payment/receipt/" + txnId;
+
+          receiptLink = '<a href="' + downloadUrl + '" target="_blank">Download</a>';
+        }
+
+        return "<tr>" +
+          "<td>" + (txn.timestamp || "-") + "</td>" +
+          "<td>" + (txn.orderId || "-") + "</td>" +
+          "<td>" + txnId + "</td>" +
+          "<td>" + (txn.amount || "-") + "</td>" +
+          "<td>" + (txn.status || "-") + "</td>" +
+          "<td>" + (txn.balance !== undefined ? txn.balance : "-") + "</td>" +
+          "<td>" + mode + "</td>" +
+          "<td>" + receiptLink + "</td>" +
+        "</tr>";
+      }).join("");
+
+      historyBox.innerHTML =
+        "<table>" +
+          "<thead>" +
+            "<tr>" +
+              "<th>Time</th>" +
+              "<th>Order</th>" +
+              "<th>Txn ID</th>" +
+              "<th>Amount</th>" +
+              "<th>Status</th>" +
+              "<th>Balance</th>" +
+              "<th>Mode</th>" +
+              "<th>Receipt</th>" +
+            "</tr>" +
+          "</thead>" +
+          "<tbody>" + rows + "</tbody>" +
+        "</table>";
     }
 
     async function pay() {
@@ -379,13 +411,39 @@ app.post("/reset", (req, res) => {
   });
 });
 
-app.post("/payment/history", (req, res) => {
-  const { cardNo } = req.body;
+app.post("/payment/history", async (req, res) => {
+  try {
+    const { cardNo, historyUrl } = req.body;
 
-  res.json({
-    cardNo,
-    transactions: transactionHistory[cardNo] || []
-  });
+    if (historyUrl && historyUrl.trim() !== "") {
+      const response = await axios.post(
+        historyUrl.trim(),
+        { cardNo },
+        { timeout: 5000 }
+      );
+
+      return res.json({
+        ...response.data,
+        mode: "VIRTUALIZE"
+      });
+    }
+
+    return res.json({
+      cardNo,
+      transactions: transactionHistory[cardNo] || [],
+      mode: "BUILT_IN"
+    });
+
+  } catch (e) {
+    console.error("History service error:", e.code, e.message);
+
+    return res.status(504).json({
+      cardNo: req.body.cardNo,
+      transactions: [],
+      mode: "VIRTUALIZE",
+      message: "Transaction history service error"
+    });
+  }
 });
 
 app.get("/payment/receipt/:transactionId", (req, res) => {
