@@ -14,6 +14,8 @@ The solution uses service virtualization to simulate both Account Services and P
 * Timeout Handling
 * Frontend Validation
 * Runtime Balance Deduction
+* Transaction History
+* Receipt Generation
 
 ---
 
@@ -38,6 +40,7 @@ The solution uses service virtualization to simulate both Account Services and P
 | In-Memory Data   |      | Parasoft Virtualize  |
 | Card Balances    |      | Account Service      |
 | Payment Gateway  |      | Payment Gateway      |
+| Transaction Log  |      | Data Source Driven   |
 +------------------+      +----------------------+
 ```
 
@@ -52,6 +55,8 @@ When both URL fields are left empty:
 * Uses in-memory account balances
 * Uses built-in payment gateway responses
 * Supports balance deduction
+* Supports transaction history
+* Supports receipt generation
 * Supports balance reset
 * Does not require Parasoft Virtualize
 
@@ -62,6 +67,8 @@ When Virtualize URLs are provided:
 * Calls Parasoft Virtualize Account Service
 * Calls Parasoft Virtualize Payment Gateway Service
 * Uses virtualized responses
+* Uses Parasoft Data Sources
+* Uses Request Correlation
 * Suitable for service virtualization demonstrations
 
 ---
@@ -189,6 +196,97 @@ Balances remain in memory until:
 
 ---
 
+## Transaction History
+
+The checkout application records runtime transaction history for each card number.
+
+After performing payments, users can click **View Transaction History** to review:
+
+* Timestamp
+* Order ID
+* Transaction ID
+* Amount
+* Status
+* Remaining Balance
+* Execution Mode
+* Receipt Download Link
+
+Transaction history is stored in memory and cleared when:
+
+* Reinitialize Data is clicked
+* Node.js application is restarted
+
+Example:
+
+| Time                 | Order ID | Transaction ID | Amount | Status   |
+| -------------------- | -------- | -------------- | ------ | -------- |
+| 2026-06-10T12:00:00Z | ORD-1001 | TXN-1001       | 1000   | APPROVED |
+| 2026-06-10T12:05:00Z | ORD-1002 | TXN-1002       | 500    | DECLINED |
+
+---
+
+## Receipt Download
+
+Transactions with a transaction ID can generate a downloadable receipt.
+
+Users can click **Download** from the Transaction History table.
+
+Endpoint:
+
+```http
+GET /payment/receipt/{transactionId}
+```
+
+Receipt information includes:
+
+* Transaction ID
+* Order ID
+* Masked Card Number
+* Amount
+* Status
+* Remaining Balance
+* Execution Mode
+* Timestamp
+
+The receipt page supports:
+
+* Browser Print
+* Save as PDF
+* Demo Receipt Generation
+
+Example:
+
+```text
+Transaction ID : TXN-1001
+Order ID       : ORD-1001
+Card Number    : 411111******1111
+Amount         : MYR 1000
+Status         : APPROVED
+Balance        : MYR 4000
+Mode           : BUILT_IN
+```
+
+---
+
+## Runtime State Management
+
+The application maintains runtime state for:
+
+* Account Balances
+* Transaction History
+
+Runtime state is preserved during application execution and can be reset without restarting Node.js.
+
+Managed State:
+
+| Feature             | Runtime Storage       |
+| ------------------- | --------------------- |
+| Card Balances       | Memory                |
+| Transaction History | Memory                |
+| Saved URLs          | Browser Local Storage |
+
+---
+
 ## Advanced Features
 
 ### Save URLs
@@ -199,7 +297,7 @@ Configured URLs remain available after refreshing the page.
 
 ### Reinitialize Data
 
-The Reinitialize Data button restores all built-in balances to their original values without restarting Node.js.
+The Reinitialize Data button restores all built-in balances and transaction history without restarting Node.js.
 
 Default balances:
 
@@ -211,6 +309,44 @@ Default balances:
 | 4444444444444444 | 5000    |
 | 6666666666666666 | 5000    |
 | 7777777777777777 | 300     |
+
+---
+
+## Dual Mode Operation
+
+### Built-in Mode
+
+No external dependency required.
+
+```text
+Payment URL = empty
+Account URL = empty
+```
+
+The application uses:
+
+* Built-in Account Service
+* Built-in Payment Gateway
+* Runtime Balances
+* Runtime Transaction History
+
+### Virtualize Mode
+
+Connects to Parasoft Virtualize services.
+
+```text
+Payment URL = http://localhost:9080/payment/charge
+Account URL = http://localhost:9080/payment/account/balance
+```
+
+The application uses:
+
+* Virtualized Account Service
+* Virtualized Payment Gateway
+* Data Source Driven Responses
+* Request Correlation
+
+Users can save Virtualize URLs using the Save URLs button and switch modes without modifying application code.
 
 ---
 
@@ -301,6 +437,8 @@ This project demonstrates:
 * UI Automation Testing
 * Balance Validation
 * Runtime State Management
+* Transaction History
+* Receipt Generation
 * Payment Gateway Simulation
 * Fraud Testing
 * Timeout Testing
@@ -326,10 +464,12 @@ If a newly added card number does not match, Virtualize may still be using a pre
 
 Potential future phases:
 
-* Transaction History Service
 * Loyalty Points Service
 * Refund Service
-* Multi-currency Support
+* Transaction Search API
 * Account Statement Service
+* PDF Receipt Virtualization
 * Mock Fraud Detection Service
+* Random Failure Injection
+* JWT Authentication Simulation
 * Performance Testing with Parasoft Load Test
