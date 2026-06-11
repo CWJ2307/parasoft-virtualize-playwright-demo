@@ -9,6 +9,7 @@ const DEFAULT_PAYMENT_URL = process.env.PAYMENT_URL || "";
 const DEFAULT_ACCOUNT_URL = process.env.ACCOUNT_URL || "";
 const DEFAULT_HISTORY_URL = process.env.HISTORY_URL || "";
 const DEFAULT_RECEIPT_URL = process.env.RECEIPT_URL || "";
+const DEFAULT_REFUND_URL = process.env.REFUND_URL || "";
 
 const builtInPaymentData = {
   "4111111111111111": { status: "APPROVED", transactionId: "TXN-1001", message: "Payment approved.", delay: 0 },
@@ -30,6 +31,14 @@ const builtInBalances = {
 
 const runtimeBalances = { ...builtInBalances };
 const transactionHistory = {};
+const refundedTransactions = new Set();
+
+let transactionCounter = 1000;
+
+function generateTransactionId() {
+  transactionCounter += 1;
+  return "TXN-" + transactionCounter;
+}
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -70,184 +79,363 @@ app.get("/checkout", (req, res) => {
 <head>
   <title>Payment Gateway Demo</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f4f6f8;
-      display: flex;
-      justify-content: center;
-      padding: 40px 0;
-    }
-    .card {
-      background: white;
-      width: 540px;
-      padding: 30px;
-      border-radius: 14px;
-      box-shadow: 0 8px 25px rgba(0,0,0,0.12);
-    }
-    h1 { margin-top: 0; color: #222; }
-    h3 { margin-bottom: 8px; color: #374151; }
-    label {
-      display: block;
-      margin-top: 14px;
-      font-weight: bold;
-      color: #444;
-    }
-    input {
-      width: 100%;
-      padding: 12px;
-      margin-top: 6px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      box-sizing: border-box;
-      font-size: 14px;
-    }
-    button {
-      width: 100%;
-      margin-top: 18px;
-      padding: 13px;
-      background: #2563eb;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    button:disabled {
-      background: #9ca3af;
-      cursor: not-allowed;
-    }
-    .secondary { background: #374151; }
-    .reset { background: #dc2626; }
-    .status {
-      margin-top: 20px;
-      padding: 14px;
-      border-radius: 8px;
-      background: #f3f4f6;
-      font-weight: bold;
-      text-align: center;
-    }
-    .approved { background: #dcfce7; color: #166534; }
-    .declined { background: #fee2e2; color: #991b1b; }
-    .timeout { background: #fef3c7; color: #92400e; }
-    .advanced, .history {
-      margin-top: 22px;
-      padding-top: 18px;
-      border-top: 1px solid #e5e7eb;
-    }
-    .hint {
-      font-size: 13px;
-      color: #666;
-      margin-top: 18px;
-      line-height: 1.6;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 12px;
-      font-size: 12px;
-    }
-    th, td {
-      border: 1px solid #e5e7eb;
-      padding: 8px;
-      text-align: left;
-    }
-    th { background: #f9fafb; }
-    a {
-      color: #2563eb;
-      font-weight: bold;
-      text-decoration: none;
-    }
+	body {
+	  font-family: Arial, sans-serif;
+	  background: #f4f6f8;
+	  margin: 0;
+	  padding: 32px;
+	  color: #1f2937;
+	}
+
+	.page {
+	  max-width: 1180px;
+	  margin: 0 auto;
+	}
+
+	.header {
+	  margin-bottom: 24px;
+	}
+
+	.header h1 {
+	  margin: 0;
+	  font-size: 34px;
+	  color: #111827;
+	}
+
+	.header p {
+	  margin: 8px 0 0;
+	  color: #6b7280;
+	}
+
+	.grid {
+	  display: grid;
+	  grid-template-columns: 1fr 420px;
+	  gap: 24px;
+	  align-items: start;
+	}
+
+	.card {
+	  background: white;
+	  padding: 24px;
+	  border-radius: 14px;
+	  box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+	  border: 1px solid #e5e7eb;
+	}
+
+	.formGrid {
+	  display: grid;
+	  grid-template-columns: 1fr 1fr;
+	  gap: 16px;
+	}
+
+	.full {
+	  grid-column: 1 / -1;
+	}
+
+	h2, h3 {
+	  margin-top: 0;
+	  color: #1f2937;
+	}
+
+	label {
+	  display: block;
+	  margin-bottom: 6px;
+	  font-weight: bold;
+	  color: #374151;
+	  font-size: 13px;
+	}
+
+	input {
+	  width: 100%;
+	  padding: 12px;
+	  border: 1px solid #d1d5db;
+	  border-radius: 8px;
+	  box-sizing: border-box;
+	  font-size: 14px;
+	}
+
+	.buttonRow {
+	  display: grid;
+	  grid-template-columns: 1fr 1fr;
+	  gap: 16px;
+	  margin-top: 18px;
+	}
+
+	button {
+	  padding: 13px;
+	  background: #2563eb;
+	  color: white;
+	  border: none;
+	  border-radius: 8px;
+	  font-size: 15px;
+	  cursor: pointer;
+	  font-weight: bold;
+	}
+
+	button:disabled {
+	  background: #9ca3af;
+	  cursor: not-allowed;
+	}
+
+	.secondary {
+	  background: #374151;
+	}
+
+	.reset {
+	  background: #dc2626;
+	}
+
+	.statusCard {
+	  background: white;
+	  padding: 24px;
+	  border-radius: 14px;
+	  box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+	  border: 1px solid #e5e7eb;
+	}
+
+	.statusTitle {
+	  font-size: 14px;
+	  font-weight: bold;
+	  color: #374151;
+	  margin-bottom: 12px;
+	}
+
+	.status {
+	  padding: 18px;
+	  border-radius: 10px;
+	  background: #f3f4f6;
+	  font-weight: bold;
+	  text-align: left;
+	  line-height: 1.5;
+	}
+
+	.approved {
+	  background: #dcfce7;
+	  color: #166534;
+	}
+
+	.declined {
+	  background: #fee2e2;
+	  color: #991b1b;
+	}
+
+	.timeout {
+	  background: #fef3c7;
+	  color: #92400e;
+	}
+
+	.section {
+	  margin-top: 24px;
+	}
+
+	.historyTableWrapper {
+	  overflow-x: auto;
+	}
+
+	table {
+	  width: 100%;
+	  border-collapse: collapse;
+	  margin-top: 12px;
+	  font-size: 13px;
+	}
+
+	th, td {
+	  border: 1px solid #e5e7eb;
+	  padding: 10px;
+	  text-align: left;
+	  vertical-align: middle;
+	}
+
+	th {
+	  background: #f9fafb;
+	  font-weight: bold;
+	}
+
+	tbody tr:hover {
+	  background: #f9fafb;
+	}
+
+	a {
+	  color: #2563eb;
+	  font-weight: bold;
+	  text-decoration: none;
+	}
+
+	.refundBtn {
+	  background: #059669;
+	  padding: 7px 10px;
+	  border-radius: 6px;
+	  color: white;
+	  border: none;
+	  cursor: pointer;
+	  font-size: 12px;
+	  width: auto;
+	}
+
+	.refundBtn:hover {
+	  opacity: 0.9;
+	}
+
+	.refundBtnDisabled {
+	  background: #9ca3af;
+	  padding: 7px 10px;
+	  border-radius: 6px;
+	  color: white;
+	  border: none;
+	  cursor: not-allowed;
+	  font-size: 12px;
+	  width: auto;
+	}
+
+	.advancedGrid {
+	  display: grid;
+	  grid-template-columns: 1fr 1fr;
+	  gap: 16px;
+	}
+
+	.hint {
+	  font-size: 13px;
+	  color: #4b5563;
+	  line-height: 1.8;
+	}
+
+	.infoBox {
+	  margin-top: 24px;
+	  background: #eff6ff;
+	  border: 1px solid #bfdbfe;
+	  color: #1e3a8a;
+	  padding: 16px;
+	  border-radius: 12px;
+	}
+
+	@media (max-width: 980px) {
+	  .grid {
+		grid-template-columns: 1fr;
+	  }
+
+	  .formGrid,
+	  .advancedGrid,
+	  .buttonRow {
+		grid-template-columns: 1fr;
+	  }
+	}
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Payment Gateway Demo</h1>
+  <div class="page">
+    <div class="header">
+      <h1>Payment Gateway Demo</h1>
+      <p>Simulate payments, view transaction history, download receipts, and process refunds.</p>
+    </div>
 
-    <label>Order ID</label>
-    <input id="orderId" value="ORD-1001" />
+    <div class="grid">
+      <div class="card">
+        <h2>Checkout</h2>
 
-    <label>Amount</label>
-    <input id="amount" value="1000" />
+        <div class="formGrid">
+          <div>
+            <label>Order ID</label>
+            <input id="orderId" value="ORD-1001" />
+          </div>
 
-    <label>Currency</label>
-    <input id="currency" value="MYR" />
+          <div>
+            <label>Amount</label>
+            <input id="amount" value="1000" />
+          </div>
 
-    <label>Card Number</label>
-    <input id="cardNo" value="4111111111111111" />
+          <div>
+            <label>Currency</label>
+            <input id="currency" value="MYR" />
+          </div>
 
-    <button id="payButton" onclick="pay()">Pay Now</button>
-    <button class="secondary" onclick="viewHistory()">View Transaction History</button>
+          <div>
+            <label>Card Number</label>
+            <input id="cardNo" value="4111111111111111" />
+          </div>
+        </div>
 
-    <div id="paymentStatus" class="status">Waiting for payment</div>
+        <div class="buttonRow">
+          <button id="payButton" onclick="pay()">Pay Now</button>
+          <button class="secondary" onclick="viewHistory()">View Transaction History</button>
+        </div>
+      </div>
 
-    <div class="history">
-      <h3>Transaction History</h3>
+      <div class="statusCard">
+        <div class="statusTitle">Payment Status</div>
+        <div id="paymentStatus" class="status">Waiting for payment</div>
+      </div>
+    </div>
+
+    <div class="card section">
+      <h2>Transaction History</h2>
       <div id="historyBox" class="hint">No transaction history loaded.</div>
     </div>
 
-    <div class="advanced">
-      <h3>Advanced Virtualize Settings</h3>
+    <div class="card section">
+      <h2>Advanced Virtualize Settings</h2>
 
-      <label>Payment Gateway URL</label>
-      <input id="paymentUrl" value="${DEFAULT_PAYMENT_URL}" placeholder="Optional: http://localhost:9080/payment/charge" />
+      <div class="advancedGrid">
+        <div>
+          <label>Payment Gateway URL</label>
+          <input id="paymentUrl" value="${DEFAULT_PAYMENT_URL}" placeholder="Optional: http://localhost:9080/payment/charge" />
+        </div>
 
-      <label>Account Balance URL</label>
-      <input id="accountUrl" value="${DEFAULT_ACCOUNT_URL}" placeholder="Optional: http://localhost:9080/payment/account/balance" />
+        <div>
+          <label>Account Balance URL</label>
+          <input id="accountUrl" value="${DEFAULT_ACCOUNT_URL}" placeholder="Optional: http://localhost:9080/payment/account/balance" />
+        </div>
 
-      <label>Transaction History URL</label>
-      <input id="historyUrl" value="${DEFAULT_HISTORY_URL}" placeholder="Optional: http://localhost:9080/payment/history" />
+        <div>
+          <label>Transaction History URL</label>
+          <input id="historyUrl" value="${DEFAULT_HISTORY_URL}" placeholder="Optional: http://localhost:9080/payment/history" />
+        </div>
 
-      <label>Receipt PDF URL</label>
-      <input id="receiptUrl" value="${DEFAULT_RECEIPT_URL}" placeholder="Optional: http://localhost:9080/payment/receipt" />
+        <div>
+          <label>Receipt PDF URL</label>
+          <input id="receiptUrl" value="${DEFAULT_RECEIPT_URL}" placeholder="Optional: http://localhost:9080/payment/receipt" />
+        </div>
 
-      <button class="secondary" onclick="saveUrls()">Save URLs</button>
-      <button class="reset" onclick="reinitializeData()">Reinitialize Data</button>
+        <div class="full">
+          <label>Refund URL</label>
+          <input id="refundUrl" value="${DEFAULT_REFUND_URL}" placeholder="Optional: http://localhost:9080/payment/refund" />
+        </div>
+      </div>
+
+      <div class="buttonRow">
+        <button class="secondary" onclick="saveUrls()">Save URLs</button>
+        <button class="reset" onclick="reinitializeData()">Reinitialize Data</button>
+      </div>
     </div>
 
-    <div class="hint">
-      <b>Test Cards</b><br>
-      Approved: 4111111111111111<br>
-      Declined: 4000000000000002<br>
-      Timeout: 5555555555554444<br>
-      Fraud: 4444444444444444<br>
-      Blocked: 6666666666666666<br>
-      Insufficient Funds: 7777777777777777<br><br>
-
-      <b>Mode</b><br>
-      Built-in mode: leave all URL fields empty<br>
-      Virtualize mode: fill in Payment Gateway URL, Account Balance URL, optional Transaction History URL, and optional Receipt PDF URL
+    <div class="infoBox">
+      <b>Test Cards:</b>
+      Approved: 4111111111111111 |
+      Declined: 4000000000000002 |
+      Timeout: 5555555555554444 |
+      Fraud: 4444444444444444 |
+      Blocked: 6666666666666666 |
+      Insufficient Funds: 7777777777777777
+      <br>
+      <b>Mode:</b> Leave URLs empty for Local Demo mode. Fill URLs to connect to Parasoft Virtualize.
     </div>
   </div>
 
   <script>
     window.addEventListener("DOMContentLoaded", () => {
-      const savedPaymentUrl = localStorage.getItem("paymentUrl");
-      const savedAccountUrl = localStorage.getItem("accountUrl");
-      const savedHistoryUrl = localStorage.getItem("historyUrl");
-      const savedReceiptUrl = localStorage.getItem("receiptUrl");
+      const fields = ["paymentUrl", "accountUrl", "historyUrl", "receiptUrl", "refundUrl"];
 
-      if (savedPaymentUrl !== null) {
-        document.getElementById("paymentUrl").value = savedPaymentUrl;
-      }
-
-      if (savedAccountUrl !== null) {
-        document.getElementById("accountUrl").value = savedAccountUrl;
-      }
-
-      if (savedHistoryUrl !== null) {
-        document.getElementById("historyUrl").value = savedHistoryUrl;
-      }
-
-      if (savedReceiptUrl !== null) {
-        document.getElementById("receiptUrl").value = savedReceiptUrl;
-      }
+      fields.forEach(function(field) {
+        const savedValue = localStorage.getItem(field);
+        if (savedValue !== null) {
+          document.getElementById(field).value = savedValue;
+        }
+      });
     });
 
     function saveUrls() {
-      localStorage.setItem("paymentUrl", document.getElementById("paymentUrl").value);
-      localStorage.setItem("accountUrl", document.getElementById("accountUrl").value);
-      localStorage.setItem("historyUrl", document.getElementById("historyUrl").value);
-      localStorage.setItem("receiptUrl", document.getElementById("receiptUrl").value);
+      ["paymentUrl", "accountUrl", "historyUrl", "receiptUrl", "refundUrl"].forEach(function(field) {
+        localStorage.setItem(field, document.getElementById(field).value);
+      });
 
       const statusBox = document.getElementById("paymentStatus");
       statusBox.innerText = "URLs saved";
@@ -267,6 +455,33 @@ app.get("/checkout", (req, res) => {
       statusBox.innerText = data.message;
       statusBox.className = "status approved";
       document.getElementById("historyBox").innerHTML = "No transaction history loaded.";
+    }
+
+    async function refundTransaction(transactionId) {
+      const statusBox = document.getElementById("paymentStatus");
+
+      const res = await fetch("/payment/refund", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          transactionId: transactionId,
+          refundUrl: document.getElementById("refundUrl").value
+        })
+      });
+
+      const data = await res.json();
+
+      statusBox.innerText = data.balance !== undefined
+        ? data.message + " | Balance: MYR " + data.balance + " | Mode: " + data.mode
+        : data.message + (data.mode ? " | Mode: " + data.mode : "");
+
+      if (data.status === "REFUNDED") {
+        statusBox.className = "status approved";
+      } else {
+        statusBox.className = "status declined";
+      }
+
+      await viewHistory();
     }
 
     async function viewHistory() {
@@ -289,12 +504,24 @@ app.get("/checkout", (req, res) => {
         historyBox.innerHTML = data.message || "No transactions found for this card.";
         return;
       }
-
+	
+      const refundedTxnIds = new Set(
+	    data.transactions
+		  .filter(function(txn) {
+		    return txn.status === "REFUNDED";
+		  })
+		  .map(function(txn) {
+		    return txn.originalTransactionId ||
+			  (txn.transactionId ? txn.transactionId.replace("RFND-", "") : "");
+		  })
+	  );	
+	
       const rows = data.transactions.map(function(txn) {
         const txnId = txn.transactionId || txn.txnId || "-";
         const mode = txn.mode || data.mode || "-";
 
         let receiptLink = "-";
+        let refundAction = "-";
 
         if (txnId !== "-") {
           const downloadUrl = receiptBaseUrl !== ""
@@ -302,6 +529,14 @@ app.get("/checkout", (req, res) => {
             : "/payment/receipt/" + txnId;
 
           receiptLink = '<a href="' + downloadUrl + '" target="_blank">Download</a>';
+
+		  if (txn.status === "APPROVED") {
+		    if (refundedTxnIds.has(txnId)) {
+			  refundAction = '<button class="refundBtnDisabled" disabled>Refunded</button>';
+		    } else {
+			  refundAction = '<button class="refundBtn" onclick="refundTransaction(\\'' + txnId + '\\')">Refund</button>';
+		    }
+		  }
         }
 
         return "<tr>" +
@@ -313,10 +548,12 @@ app.get("/checkout", (req, res) => {
           "<td>" + (txn.balance !== undefined ? txn.balance : "-") + "</td>" +
           "<td>" + mode + "</td>" +
           "<td>" + receiptLink + "</td>" +
+          "<td>" + refundAction + "</td>" +
         "</tr>";
       }).join("");
 
       historyBox.innerHTML =
+	    "<div class='historyTableWrapper'>" +
         "<table>" +
           "<thead>" +
             "<tr>" +
@@ -328,10 +565,12 @@ app.get("/checkout", (req, res) => {
               "<th>Balance</th>" +
               "<th>Mode</th>" +
               "<th>Receipt</th>" +
+              "<th>Refund</th>" +
             "</tr>" +
           "</thead>" +
           "<tbody>" + rows + "</tbody>" +
-        "</table>";
+        "</table>"; +
+		"</div>";
     }
 
     async function pay() {
@@ -403,11 +642,14 @@ app.post("/reset", (req, res) => {
     delete transactionHistory[cardNo];
   });
 
-  console.log("Built-in balances and transaction history reinitialized");
+  refundedTransactions.clear();
+  transactionCounter = 1000;
+
+  console.log("Built-in balances, refund state, and transaction history reinitialized");
 
   res.json({
     status: "RESET",
-    message: "Built-in data and transaction history reinitialized"
+    message: "Built-in data, refund state, and transaction history reinitialized"
   });
 });
 
@@ -462,11 +704,7 @@ app.get("/payment/receipt/:transactionId", (req, res) => {
 <head>
   <title>Receipt ${transactionId}</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f4f6f8;
-      padding: 40px;
-    }
+    body { font-family: Arial, sans-serif; background: #f4f6f8; padding: 40px; }
     .receipt {
       background: white;
       max-width: 520px;
@@ -475,10 +713,7 @@ app.get("/payment/receipt/:transactionId", (req, res) => {
       border-radius: 12px;
       box-shadow: 0 8px 25px rgba(0,0,0,0.12);
     }
-    h1 {
-      margin-top: 0;
-      color: #222;
-    }
+    h1 { margin-top: 0; color: #222; }
     .row {
       display: flex;
       justify-content: space-between;
@@ -486,10 +721,7 @@ app.get("/payment/receipt/:transactionId", (req, res) => {
       border-bottom: 1px solid #eee;
       gap: 20px;
     }
-    .label {
-      font-weight: bold;
-      color: #555;
-    }
+    .label { font-weight: bold; color: #555; }
     .footer {
       margin-top: 24px;
       font-size: 12px;
@@ -513,45 +745,14 @@ app.get("/payment/receipt/:transactionId", (req, res) => {
   <div class="receipt">
     <h1>Payment Receipt</h1>
 
-    <div class="row">
-      <span class="label">Transaction ID</span>
-      <span>${transaction.transactionId}</span>
-    </div>
-
-    <div class="row">
-      <span class="label">Order ID</span>
-      <span>${transaction.orderId}</span>
-    </div>
-
-    <div class="row">
-      <span class="label">Card</span>
-      <span>${transaction.maskedCardNo}</span>
-    </div>
-
-    <div class="row">
-      <span class="label">Amount</span>
-      <span>${transaction.currency} ${transaction.amount}</span>
-    </div>
-
-    <div class="row">
-      <span class="label">Status</span>
-      <span>${transaction.status}</span>
-    </div>
-
-    <div class="row">
-      <span class="label">Remaining Balance</span>
-      <span>MYR ${transaction.balance}</span>
-    </div>
-
-    <div class="row">
-      <span class="label">Mode</span>
-      <span>${transaction.mode}</span>
-    </div>
-
-    <div class="row">
-      <span class="label">Timestamp</span>
-      <span>${transaction.timestamp}</span>
-    </div>
+    <div class="row"><span class="label">Transaction ID</span><span>${transaction.transactionId}</span></div>
+    <div class="row"><span class="label">Order ID</span><span>${transaction.orderId}</span></div>
+    <div class="row"><span class="label">Card</span><span>${transaction.maskedCardNo}</span></div>
+    <div class="row"><span class="label">Amount</span><span>${transaction.currency} ${transaction.amount}</span></div>
+    <div class="row"><span class="label">Status</span><span>${transaction.status}</span></div>
+    <div class="row"><span class="label">Remaining Balance</span><span>MYR ${transaction.balance}</span></div>
+    <div class="row"><span class="label">Mode</span><span>${transaction.mode}</span></div>
+    <div class="row"><span class="label">Timestamp</span><span>${transaction.timestamp}</span></div>
 
     <button onclick="window.print()">Print / Save as PDF</button>
 
@@ -562,6 +763,92 @@ app.get("/payment/receipt/:transactionId", (req, res) => {
 </body>
 </html>
   `);
+});
+
+app.post("/payment/refund", async (req, res) => {
+  try {
+    const { transactionId, refundUrl } = req.body;
+    const useVirtualizeRefund = refundUrl && refundUrl.trim() !== "";
+    const mode = useVirtualizeRefund ? "VIRTUALIZE" : "BUILT_IN";
+
+    if (useVirtualizeRefund) {
+      const refundResponse = await axios.post(
+        refundUrl.trim(),
+        { transactionId },
+        { timeout: 5000 }
+      );
+
+      return res.json({
+        ...refundResponse.data,
+        mode
+      });
+    }
+
+    const transaction = findTransactionById(transactionId);
+
+    if (!transaction) {
+      return res.status(404).json({
+        status: "DECLINED",
+        message: "Transaction not found",
+        mode
+      });
+    }
+
+    if (transaction.status !== "APPROVED") {
+      return res.status(200).json({
+        status: "DECLINED",
+        message: "Only approved transactions can be refunded",
+        mode
+      });
+    }
+
+    if (refundedTransactions.has(transactionId)) {
+      return res.status(200).json({
+        status: "DECLINED",
+        message: "Transaction already refunded",
+        balance: runtimeBalances[transaction.cardNo],
+        mode
+      });
+    }
+
+    refundedTransactions.add(transactionId);
+
+    runtimeBalances[transaction.cardNo] =
+      (runtimeBalances[transaction.cardNo] || 0) + Number(transaction.amount);
+
+    const refundTransactionId = "RFND-" + transactionId;
+
+    addTransaction({
+      orderId: transaction.orderId,
+      cardNo: transaction.cardNo,
+      amount: transaction.amount,
+      currency: transaction.currency,
+      status: "REFUNDED",
+      message: "Refund successful",
+      balance: runtimeBalances[transaction.cardNo],
+      transactionId: refundTransactionId,
+      mode
+    });
+
+    return res.json({
+      status: "REFUNDED",
+      transactionId: refundTransactionId,
+      originalTransactionId: transactionId,
+      amount: transaction.amount,
+      balance: runtimeBalances[transaction.cardNo],
+      message: "Refund successful",
+      mode
+    });
+
+  } catch (e) {
+    console.error("Refund service error:", e.code, e.message);
+
+    return res.status(504).json({
+      status: "TIMEOUT",
+      message: "Refund timeout or error",
+      mode: "VIRTUALIZE"
+    });
+  }
 });
 
 app.post("/pay", async (req, res) => {
@@ -672,11 +959,17 @@ app.post("/pay", async (req, res) => {
       }
     }
 
-    const result = {
-      ...paymentResult,
-      balance: newBalance,
-      mode
-    };
+    const finalPaymentResult = { ...paymentResult };
+
+	if (!useVirtualizePayment) {
+	  finalPaymentResult.transactionId = generateTransactionId();
+	}
+
+	const result = {
+	  ...finalPaymentResult,
+	  balance: newBalance,
+	  mode
+	};
 
     addTransaction({
       orderId,

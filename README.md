@@ -4,8 +4,7 @@
 
 This project demonstrates how Playwright UI automation can be combined with Parasoft Virtualize to test payment processing workflows without relying on real third-party services.
 
-The solution uses service virtualization to simulate Account Services, Payment Gateway Services, Transaction History Services, and PDF Receipt Services, allowing end-to-end testing of payment scenarios.
-
+The solution uses service virtualization to simulate Account Services, Payment Gateway Services, Transaction History Services, PDF Receipt Services, and Refund Services, allowing end-to-end testing of payment scenarios.
 Key capabilities include:
 
 * Service Virtualization
@@ -18,6 +17,7 @@ Key capabilities include:
 * Runtime Balance Deduction
 * Built-in Mode
 * Virtualize Mode
+* Refund Processing
 
 ---
 
@@ -45,6 +45,7 @@ Key capabilities include:
 | Payment Gateway     |               | Payment Gateway      |
 | Transaction History |               | Transaction History  |
 | Receipt Service     |               | PDF Receipt Service  |
+| Refund Service      |               | Refund Service       |
 +---------------------+               +----------------------+
 ```
 
@@ -73,6 +74,7 @@ When Virtualize URLs are configured:
 * Downloads PDF Receipts from Parasoft Virtualize
 * Uses Data Source Correlation
 * Uses Dynamic Responses
+* Calls Parasoft Virtualize Refund Service
 
 ---
 
@@ -186,6 +188,35 @@ receipt-TXN-1001.pdf
 
 ---
 
+### Refund Service
+
+Endpoint:
+
+```http
+POST /payment/refund
+```
+
+Example Request:
+
+```json
+{
+  "transactionId": "TXN-1001"
+}
+```
+
+Example Response:
+
+```json
+{
+  "status": "REFUNDED",
+  "transactionId": "TXN-1001",
+  "amount": 1000,
+  "message": "Refund successful"
+}
+```
+
+---
+
 ## Test Scenarios
 
 | Scenario            | Card Number      | Balance | Expected Result          |
@@ -293,15 +324,40 @@ Features:
 
 ---
 
+## Refund Processing
+
+Features:
+
+* Refund approved transactions
+* Prevent duplicate refunds
+* Built-in refund processing
+* Virtualized refund service support
+* Refund transaction history tracking
+
+```text
+Original Balance = MYR 5000
+Payment Amount = MYR 1000
+Balance After Payment = MYR 4000
+Refund Amount = MYR 1000
+Balance After Refund = MYR 5000
+```
+
+### Virtualized Refund URLs
+
+```text
+http://localhost:9080/payment/refund
+```
+
 ## Runtime State Management
 
 The application manages:
 
 | Feature             | Storage               |
 | ------------------- | --------------------- |
-| Card Balances       | Memory                |
-| Transaction History | Memory                |
-| Saved URLs          | Browser Local Storage |
+| Card Balances          | Memory |
+| Transaction History    | Memory |
+| Refunded Transactions  | Memory |
+| Saved URLs             | Browser Local Storage |
 
 ---
 
@@ -319,6 +375,10 @@ Restores:
 
 * Built-in balances
 * Transaction history
+* Refund state
+* Transaction counter
+
+without restarting Node.js.
 
 without restarting Node.js.
 
@@ -332,6 +392,8 @@ without restarting Node.js.
 | Account Balance URL     | http://localhost:9080/payment/account/balance |
 | Transaction History URL | http://localhost:9080/payment/history         |
 | Receipt PDF URL         | http://localhost:9080/payment/receipt         |
+| Refund URL			  | http://localhost:9080/payment/refund |
+
 
 ---
 
@@ -435,6 +497,7 @@ This project demonstrates:
 * Fraud Simulation
 * Timeout Simulation
 * End-to-End Testing
+* Refund Processing
 
 ---
 
@@ -456,7 +519,6 @@ This ensures Virtualize reloads the latest Data Source values.
 
 Potential future phases:
 
-* Refund Service
 * Loyalty Points Service
 * Account Statement Service
 * Multi-currency Support
