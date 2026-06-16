@@ -857,17 +857,19 @@ app.post("/payment/refund", async (req, res) => {
 
     const refundTransactionId = "RFND-" + transactionId;
 
-    addTransaction({
-      orderId: transaction.orderId,
-      cardNo: transaction.cardNo,
-      amount: transaction.amount,
-      currency: transaction.currency,
-      status: "REFUNDED",
-      message: "Refund successful",
-      balance: runtimeBalances[transaction.cardNo],
-      transactionId: refundTransactionId,
-      mode
-    });
+	if (mode === "BUILT_IN") {
+	  addTransaction({
+		orderId: transaction.orderId,
+		cardNo: transaction.cardNo,
+		amount: transaction.amount,
+		currency: transaction.currency,
+		status: "REFUNDED",
+		message: "Refund successful",
+		balance: runtimeBalances[transaction.cardNo],
+		transactionId: refundTransactionId,
+		mode
+	  });
+	}
 
     return res.json({
       status: "REFUNDED",
@@ -938,17 +940,19 @@ app.post("/pay", async (req, res) => {
         mode
       };
 
-      addTransaction({
-        orderId,
-        cardNo,
-        amount: paymentAmount,
-        currency,
-        status: result.status,
-        message: result.message,
-        balance: result.balance,
-        transactionId: null,
-        mode
-      });
+	if (mode === "BUILT_IN") {
+	  addTransaction({
+		orderId,
+		cardNo,
+		amount: paymentAmount,
+		currency,
+		status: result.status,
+		message: result.message,
+		balance: result.balance,
+		transactionId: null,
+		mode
+	  });
+	}
 
       return res.status(200).json(result);
     }
@@ -1010,17 +1014,19 @@ app.post("/pay", async (req, res) => {
 	  mode
 	};
 
-    addTransaction({
-      orderId,
-      cardNo,
-      amount: paymentAmount,
-      currency,
-      status: result.status,
-      message: result.message,
-      balance: result.balance,
-      transactionId: result.transactionId,
-      mode
-    });
+	if (mode === "BUILT_IN") {
+	  addTransaction({
+		orderId,
+		cardNo,
+		amount: paymentAmount,
+		currency,
+		status: result.status,
+		message: result.message,
+		balance: result.balance,
+		transactionId: result.transactionId,
+		mode
+	  });
+	}
 
     return res.json(result);
 
