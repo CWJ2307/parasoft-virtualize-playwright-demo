@@ -72,6 +72,18 @@ function findTransactionById(transactionId) {
   return null;
 }
 
+const swaggerUi = require("swagger-ui-express");
+const YAML = require("yamljs");
+
+const swaggerDocument =
+  YAML.load("./payment-gateway-demo-openapi.yaml");
+
+app.use(
+  "/api-docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerDocument)
+);
+
 app.get("/checkout", (req, res) => {
   res.send(`
 <!DOCTYPE html>
@@ -298,6 +310,18 @@ app.get("/checkout", (req, res) => {
 	  color: #4b5563;
 	  line-height: 1.8;
 	}
+	
+	.apiLink {
+	  display: inline-block;
+	  margin-top: 10px;
+	  color: #2563eb;
+	  font-weight: bold;
+	  text-decoration: none;
+	}
+
+	.apiLink:hover {
+	  text-decoration: underline;
+	}
 
 	.infoBox {
 	  margin-top: 24px;
@@ -323,10 +347,25 @@ app.get("/checkout", (req, res) => {
 </head>
 <body>
   <div class="page">
-    <div class="header">
-      <h1>Payment Gateway Demo</h1>
-      <p>Simulate payments, view transaction history, download receipts, and process refunds.</p>
-    </div>
+	<div class="header">
+	  <h1>Payment Gateway Demo</h1>
+	  <small>v1.0</small>
+
+	  <p>
+		Simulate payments, view transaction history,
+		download receipts, and process refunds.
+	  </p>
+
+	  <div style="margin-top:10px;">
+		<a
+		  href="/api-docs"
+		  target="_blank"
+		  class="apiLink"
+		>
+		  📘 API Documentation (Swagger)
+		</a>
+	  </div>
+	</div>
 
     <div class="grid">
       <div class="card">
@@ -452,8 +491,8 @@ app.get("/checkout", (req, res) => {
 
       const data = await res.json();
 
-      statusBox.innerText = data.message;
       statusBox.className = "status approved";
+	  statusBox.innerText = "Built-in data reinitialized successfully";
       document.getElementById("historyBox").innerHTML = "No transaction history loaded.";
     }
 
@@ -569,7 +608,7 @@ app.get("/checkout", (req, res) => {
             "</tr>" +
           "</thead>" +
           "<tbody>" + rows + "</tbody>" +
-        "</table>"; +
+        "</table>" +
 		"</div>";
     }
 
@@ -775,7 +814,7 @@ app.post("/payment/refund", async (req, res) => {
       const refundResponse = await axios.post(
         refundUrl.trim(),
         { transactionId },
-        { timeout: 5000 }
+        { timeout: 10000 }
       );
 
       return res.json({

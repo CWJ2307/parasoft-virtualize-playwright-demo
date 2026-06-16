@@ -1,0 +1,620 @@
+openapi: 3.0.3
+info:
+  title: Parasoft Virtualize + Payment Gateway Demo API
+  version: 1.0.0
+  description: |
+    OpenAPI specification for the Payment Gateway Demo.
+
+    This API specification covers:
+    - Checkout Application APIs running on localhost:3000
+    - Parasoft Virtualize APIs running on localhost:9080
+    - Built-in mode
+    - Virtualize mode
+    - Payment processing
+    - Account balance validation
+    - Transaction history
+    - Receipt download
+    - Refund processing
+
+servers:
+  - url: http://localhost:3000
+    description: Checkout Application
+  - url: http://localhost:9080
+    description: Parasoft Virtualize
+
+tags:
+  - name: Checkout Application
+    description: APIs exposed by the Node.js checkout application
+  - name: Virtualize Services
+    description: Virtualized services hosted by Parasoft Virtualize
+  - name: Receipt
+    description: Receipt download APIs
+  - name: Refund
+    description: Refund processing APIs
+
+paths:
+  /checkout:
+    get:
+      tags:
+        - Checkout Application
+      summary: Open checkout UI
+      description: Returns the checkout web page.
+      servers:
+        - url: http://localhost:3000
+      responses:
+        "200":
+          description: Checkout HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /pay:
+    post:
+      tags:
+        - Checkout Application
+      summary: Process payment through checkout application
+      description: |
+        Processes a payment. If paymentUrl and accountUrl are empty, built-in mode is used.
+        If paymentUrl and accountUrl are provided, the checkout application calls Parasoft Virtualize.
+      servers:
+        - url: http://localhost:3000
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckoutPaymentRequest"
+            examples:
+              builtInApproved:
+                summary: Built-in approved payment
+                value:
+                  orderId: ORD-1001
+                  amount: "1000"
+                  currency: MYR
+                  cardNo: "4111111111111111"
+                  paymentUrl: ""
+                  accountUrl: ""
+              virtualizeApproved:
+                summary: Virtualize approved payment
+                value:
+                  orderId: ORD-1001
+                  amount: "1000"
+                  currency: MYR
+                  cardNo: "4111111111111111"
+                  paymentUrl: http://localhost:9080/payment/charge
+                  accountUrl: http://localhost:9080/payment/account/balance
+      responses:
+        "200":
+          description: Payment processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+              examples:
+                approved:
+                  value:
+                    status: APPROVED
+                    transactionId: TXN-1001
+                    message: Payment approved.
+                    balance: 4000
+                    mode: BUILT_IN
+                declined:
+                  value:
+                    status: DECLINED
+                    message: Insufficient funds
+                    balance: 300
+                    mode: BUILT_IN
+        "400":
+          description: Invalid amount
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Card not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Payment timeout or error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /reset:
+    post:
+      tags:
+        - Checkout Application
+      summary: Reinitialize built-in runtime data
+      description: |
+        Resets built-in balances, transaction history, refund state, and transaction counter.
+      servers:
+        - url: http://localhost:3000
+      responses:
+        "200":
+          description: Runtime data reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResetResponse"
+              example:
+                status: RESET
+                message: Built-in data, refund state, and transaction history reinitialized
+
+  /payment/account/balance:
+    post:
+      tags:
+        - Virtualize Services
+      summary: Get account balance
+      description: Virtualized account balance lookup.
+      servers:
+        - url: http://localhost:9080
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountBalanceRequest"
+            example:
+              cardNo: "4111111111111111"
+      responses:
+        "200":
+          description: Account balance response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountBalanceResponse"
+              example:
+                cardNo: "4111111111111111"
+                balance: 5000
+
+  /payment/charge:
+    post:
+      tags:
+        - Virtualize Services
+      summary: Virtualized payment charge
+      description: |
+        Simulates payment gateway processing using Parasoft Virtualize.
+      servers:
+        - url: http://localhost:9080
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentChargeRequest"
+            examples:
+              approved:
+                value:
+                  orderId: ORD-1001
+                  amount: "1000"
+                  currency: MYR
+                  cardNo: "4111111111111111"
+              declined:
+                value:
+                  orderId: ORD-1002
+                  amount: "1000"
+                  currency: MYR
+                  cardNo: "4000000000000002"
+              timeout:
+                value:
+                  orderId: ORD-1003
+                  amount: "1000"
+                  currency: MYR
+                  cardNo: "5555555555554444"
+      responses:
+        "200":
+          description: Payment gateway response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VirtualizePaymentResponse"
+              examples:
+                approved:
+                  value:
+                    status: APPROVED
+                    transactionId: TXN-1001
+                    message: Payment approved.
+                declined:
+                  value:
+                    status: DECLINED
+                    transactionId: TXN-1002
+                    message: Payment declined.
+                fraud:
+                  value:
+                    status: FRAUD
+                    transactionId: TXN-1004
+                    message: Transaction under review.
+                blocked:
+                  value:
+                    status: BLOCKED
+                    transactionId: TXN-1005
+                    message: Card blocked.
+        "504":
+          description: Simulated payment timeout
+
+  /payment/history:
+    post:
+      tags:
+        - Checkout Application
+        - Virtualize Services
+      summary: Get transaction history
+      description: |
+        On localhost:3000, this endpoint can return built-in runtime history or proxy to Virtualize when historyUrl is provided.
+
+        On localhost:9080, this endpoint returns virtualized transaction history directly from Parasoft Virtualize.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HistoryRequest"
+            examples:
+              builtInHistory:
+                summary: Built-in history through checkout app
+                value:
+                  cardNo: "4111111111111111"
+                  historyUrl: ""
+              virtualizeHistoryThroughApp:
+                summary: Virtualize history through checkout app
+                value:
+                  cardNo: "4111111111111111"
+                  historyUrl: http://localhost:9080/payment/history
+              directVirtualizeHistory:
+                summary: Direct Virtualize history
+                value:
+                  cardNo: "4111111111111111"
+      responses:
+        "200":
+          description: Transaction history response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryResponse"
+              example:
+                cardNo: "4111111111111111"
+                mode: VIRTUALIZE
+                transactions:
+                  - txnId: TXN-1001
+                    amount: 1000
+                    status: APPROVED
+                  - txnId: TXN-1007
+                    amount: 500
+                    status: APPROVED
+                  - txnId: TXN-1010
+                    amount: 1200
+                    status: APPROVED
+        "504":
+          description: Transaction history service error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /payment/receipt/{transactionId}:
+    get:
+      tags:
+        - Receipt
+      summary: Download or view receipt
+      description: |
+        On localhost:3000, returns a built-in HTML receipt generated by the checkout app.
+
+        On localhost:9080, returns a virtualized PDF receipt from Parasoft Virtualize.
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: TXN-1001
+      responses:
+        "200":
+          description: Receipt response
+          content:
+            text/html:
+              schema:
+                type: string
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Receipt not found
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: Receipt not found
+
+  /payment/refund:
+    post:
+      tags:
+        - Refund
+        - Checkout Application
+        - Virtualize Services
+      summary: Process refund
+      description: |
+        On localhost:3000, processes a built-in refund or proxies to Parasoft Virtualize when refundUrl is provided.
+
+        On localhost:9080, processes a virtualized refund directly through Parasoft Virtualize.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefundRequest"
+            examples:
+              builtInRefund:
+                summary: Built-in refund through checkout app
+                value:
+                  transactionId: TXN-1001
+                  refundUrl: ""
+              virtualizeRefundThroughApp:
+                summary: Virtualize refund through checkout app
+                value:
+                  transactionId: TXN-1001
+                  refundUrl: http://localhost:9080/payment/refund
+              directVirtualizeRefund:
+                summary: Direct Virtualize refund
+                value:
+                  transactionId: TXN-1001
+      responses:
+        "200":
+          description: Refund response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefundResponse"
+              examples:
+                refunded:
+                  value:
+                    status: REFUNDED
+                    transactionId: RFND-TXN-1001
+                    originalTransactionId: TXN-1001
+                    amount: 1000
+                    balance: 5000
+                    message: Refund successful
+                    mode: BUILT_IN
+                alreadyRefunded:
+                  value:
+                    status: DECLINED
+                    message: Transaction already refunded
+                    balance: 5000
+                    mode: BUILT_IN
+        "404":
+          description: Transaction not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: Refund timeout or error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    CheckoutPaymentRequest:
+      type: object
+      required:
+        - orderId
+        - amount
+        - currency
+        - cardNo
+      properties:
+        orderId:
+          type: string
+          example: ORD-1001
+        amount:
+          type: string
+          example: "1000"
+        currency:
+          type: string
+          example: MYR
+        cardNo:
+          type: string
+          example: "4111111111111111"
+        paymentUrl:
+          type: string
+          example: http://localhost:9080/payment/charge
+        accountUrl:
+          type: string
+          example: http://localhost:9080/payment/account/balance
+
+    PaymentChargeRequest:
+      type: object
+      required:
+        - orderId
+        - amount
+        - currency
+        - cardNo
+      properties:
+        orderId:
+          type: string
+          example: ORD-1001
+        amount:
+          type: string
+          example: "1000"
+        currency:
+          type: string
+          example: MYR
+        cardNo:
+          type: string
+          example: "4111111111111111"
+
+    PaymentResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: APPROVED
+        transactionId:
+          type: string
+          example: TXN-1001
+        message:
+          type: string
+          example: Payment approved.
+        balance:
+          type: number
+          example: 4000
+        mode:
+          type: string
+          enum:
+            - BUILT_IN
+            - VIRTUALIZE
+          example: BUILT_IN
+
+    VirtualizePaymentResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: APPROVED
+        transactionId:
+          type: string
+          example: TXN-1001
+        message:
+          type: string
+          example: Payment approved.
+
+    AccountBalanceRequest:
+      type: object
+      required:
+        - cardNo
+      properties:
+        cardNo:
+          type: string
+          example: "4111111111111111"
+
+    AccountBalanceResponse:
+      type: object
+      properties:
+        cardNo:
+          type: string
+          example: "4111111111111111"
+        balance:
+          type: number
+          example: 5000
+
+    HistoryRequest:
+      type: object
+      required:
+        - cardNo
+      properties:
+        cardNo:
+          type: string
+          example: "4111111111111111"
+        historyUrl:
+          type: string
+          example: http://localhost:9080/payment/history
+
+    HistoryResponse:
+      type: object
+      properties:
+        cardNo:
+          type: string
+          example: "4111111111111111"
+        mode:
+          type: string
+          example: VIRTUALIZE
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+
+    Transaction:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-06-16T10:00:00.000Z"
+        orderId:
+          type: string
+          example: ORD-1001
+        transactionId:
+          type: string
+          example: TXN-1001
+        txnId:
+          type: string
+          example: TXN-1001
+        amount:
+          type: number
+          example: 1000
+        currency:
+          type: string
+          example: MYR
+        status:
+          type: string
+          example: APPROVED
+        balance:
+          type: number
+          example: 4000
+        mode:
+          type: string
+          example: BUILT_IN
+
+    RefundRequest:
+      type: object
+      required:
+        - transactionId
+      properties:
+        transactionId:
+          type: string
+          example: TXN-1001
+        refundUrl:
+          type: string
+          example: http://localhost:9080/payment/refund
+
+    RefundResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: REFUNDED
+        transactionId:
+          type: string
+          example: RFND-TXN-1001
+        originalTransactionId:
+          type: string
+          example: TXN-1001
+        amount:
+          type: number
+          example: 1000
+        balance:
+          type: number
+          example: 5000
+        message:
+          type: string
+          example: Refund successful
+        mode:
+          type: string
+          example: BUILT_IN
+
+    ResetResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: RESET
+        message:
+          type: string
+          example: Built-in data, refund state, and transaction history reinitialized
+
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: DECLINED
+        message:
+          type: string
+          example: Payment timeout or error
+        mode:
+          type: string
+          example: BUILT_IN
