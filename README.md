@@ -270,6 +270,13 @@ Balances remain in memory until:
 
 ## Transaction History
 
+Transaction history is isolated by execution mode.
+
+* Built-in Mode stores transactions in memory.
+* Virtualize Mode retrieves transaction history directly from Parasoft Virtualize services.
+
+This prevents transaction records from different execution modes from being mixed together.
+
 The checkout application records transaction history during runtime.
 
 Users can view:
@@ -380,8 +387,6 @@ Restores:
 
 without restarting Node.js.
 
-without restarting Node.js.
-
 ---
 
 ## Supported Virtualize URLs
@@ -392,7 +397,7 @@ without restarting Node.js.
 | Account Balance URL     | http://localhost:9080/payment/account/balance |
 | Transaction History URL | http://localhost:9080/payment/history         |
 | Receipt PDF URL         | http://localhost:9080/payment/receipt         |
-| Refund URL			  | http://localhost:9080/payment/refund |
+| Refund URL			  | http://localhost:9080/payment/refund 		  |
 
 
 ---
@@ -418,6 +423,12 @@ Playwright validates:
 
 * Balance Deduction
 * Balance Validation
+
+### Refund Testing
+
+* Successful Refund
+* Duplicate Refund Protection
+* Refund State Validation
 
 ### End-to-End Testing
 
@@ -457,6 +468,23 @@ http://localhost:3000/checkout
 ```
 
 ---
+
+## API Documentation
+
+Swagger UI is available after starting the application:
+
+```text
+http://localhost:3000/api-docs
+```
+
+The API documentation includes:
+
+* Account Balance Service
+* Payment Gateway Service
+* Transaction History Service
+* Receipt Service
+* Refund Service
+* Request and Response Examples
 
 ## Run Playwright Tests
 
